@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import { uploadons3 } from "../utils/fileupload.js";
 
 
 const registerUser = asyncHandler( async (req, res) => {
@@ -17,7 +18,6 @@ const registerUser = asyncHandler( async (req, res) => {
     7. remove password and token from response
     8. user creation check and return 
     */
-   console.log(req.body)
    const { username, email, fullname, password } = req.body
    if(
     [fullname, email, username, password].some((field) => field?.trim() === "")
@@ -33,10 +33,36 @@ const registerUser = asyncHandler( async (req, res) => {
     throw new ApiError(409, "username or email is already in use")
    }
 
+   const avatarLocalPath = req.files?.avatar[0]?.path;
+   const avatarfilename = req.files?.avatar[0]?.originalname.split(" ").join("");
+
+   if(!avatarLocalPath){
+    throw new ApiError(400, "Avatar file is required")
+   }
+
+   let coverImageLocalPath;
+   let coverImagefilename;
+   if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+    coverImageLocalPath = req.files.coverImage[0].path
+    coverImagefilename = req.files?.coverImage[0]?.originalname.split(" ").join("")
+   }
+   
+
+
+
+   const avatar = await uploadons3(avatarLocalPath, avatarfilename)
+   const coverImage = await uploadons3(coverImageLocalPath, coverImagefilename)
+
+   if(!avatar){
+    throw new ApiError(500, "failed while uploading")
+   }
+
    const newuser = await User.create({
     fullname,
     email,
     password,
+    avatar: avatar.Location,
+    coverImage: coverImage?.Location || "",
     username
    })
 
